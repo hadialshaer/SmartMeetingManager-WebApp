@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 
-namespace SmartMeetingManager_WebApp.Controllers
+namespace SmartMeetingManager.Controllers
 {
     [ApiController]
     [Route("[controller]")]

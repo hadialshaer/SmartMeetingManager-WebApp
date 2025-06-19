@@ -1,4 +1,4 @@
-namespace SmartMeetingManager_WebApp
+namespace SmartMeetingManager
 {
     public class WeatherForecast
     {
