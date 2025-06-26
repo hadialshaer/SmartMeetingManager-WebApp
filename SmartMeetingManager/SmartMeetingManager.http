@@ -1,0 +1,7 @@
+@SmartMeetingManager_HostAddress = http://localhost:5174
+
+GET http://localhost:5174/weatherforecast/
+Accept: application/json
+
+
+###

@@ -15,7 +15,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
+app.UseSwaggerUI(o =>
+{
+	o.SwaggerEndpoint("/openapi/v1.json", "SmartMeetingManager API");
+	o.RoutePrefix = string.Empty; // serve Swagger UI at root /
+});
 app.UseAuthorization();
 
 app.MapControllers();
