@@ -10,10 +10,8 @@
 
 		// Foreign Keys
 		public int MeetingId { get; set; }
-		public int UserId { get; set; }
 
 		// Navigation Properties
 		public Meetings Meeting { get; set; }
-		public Users User { get; set; }
 	}
 }
