@@ -24,8 +24,23 @@ namespace SmartMeetingManager.Data
 		public DbSet<Decisions> Decisions { get; set; }
 		public DbSet<Notifications> Notifications { get; set; }
 
-		
+		protected override void OnModelCreating(ModelBuilder modelBuilder)
+		{
+			base.OnModelCreating(modelBuilder);
 
+			// Prevent delete for Users when a MeetingAttendees referencing it
+			modelBuilder.Entity<MeetingAttendees>()
+				.HasOne(ma => ma.User)
+				.WithMany()
+				.HasForeignKey(ma => ma.UserId)
+				.OnDelete(DeleteBehavior.Restrict);
 
+			// Prevent delete users when action items referencing it
+			modelBuilder.Entity<ActionItems>()
+				.HasOne(ai => ai.User)
+				.WithMany()
+				.HasForeignKey(ai => ai.UserId)
+				.OnDelete(DeleteBehavior.Restrict);
+		}
 	}
 }
