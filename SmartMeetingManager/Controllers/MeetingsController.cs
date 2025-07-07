@@ -19,13 +19,13 @@ namespace SmartMeetingManager.Controllers
 
 		// Get All Meetings
 		[HttpGet]
-		public IActionResult GetAllMeetings()
+		public async Task<IActionResult> GetAllMeetings()
 		{
 			// Get Data from Database - Domain Models
-			var meetings = dbContext.Meetings
+			var meetings = await dbContext.Meetings
 				.Include(m => m.User)
 				.Include(m => m.Room)
-				.ToList();
+				.ToListAsync();
 
 			if (meetings.Count == 0)
 			{
@@ -57,13 +57,13 @@ namespace SmartMeetingManager.Controllers
 		// Get Single Meeting
 		[HttpGet]
 		[Route("{id:int}")]
-		public IActionResult GetMeetingById([FromRoute] int id)
+		public async Task<IActionResult> GetMeetingById([FromRoute] int id)
 		{
 			// Get Data from Database - Domain Models
-			var meeting = dbContext.Meetings
+			var meeting = await dbContext.Meetings
 				.Include(m => m.User)
 				.Include(m => m.Room)
-				.FirstOrDefault(m => m.Id == id);
+				.FirstOrDefaultAsync(m => m.Id == id);
 
 			if (meeting == null)
 			{
@@ -89,7 +89,7 @@ namespace SmartMeetingManager.Controllers
 
 		// Create New Meeting
 		[HttpPost]
-		public IActionResult CreateMeeting([FromBody] CreateMeetingDTO createMeetingDTO)
+		public async Task<IActionResult> CreateMeeting([FromBody] CreateMeetingDTO createMeetingDTO)
 		{
 			// Map CreateMeetingDTO to Meetings Model
 			var meeting = new Meetings
@@ -104,8 +104,8 @@ namespace SmartMeetingManager.Controllers
 			};
 
 			// Use Model to create new Meeting and Add to Database
-			dbContext.Meetings.Add(meeting);
-			dbContext.SaveChanges();
+			await dbContext.Meetings.AddAsync(meeting);
+			await dbContext.SaveChangesAsync();
 
 			var organizerName = dbContext.Users
 				.Where(u => u.Id == meeting.UserId)
@@ -135,9 +135,9 @@ namespace SmartMeetingManager.Controllers
 		// Update Meeting
 		[HttpPut]
 		[Route("{id:int}")]
-		public IActionResult UpdateMeeting([FromRoute] int id, [FromBody] UpdateMeetingDTO updateMeetingDTO)
+		public async Task<IActionResult> UpdateMeeting([FromRoute] int id, [FromBody] UpdateMeetingDTO updateMeetingDTO)
 		{
-			var meeting = dbContext.Meetings.FirstOrDefault(m => m.Id == id);
+			var meeting = await dbContext.Meetings.FirstOrDefaultAsync(m => m.Id == id);
 			if (meeting == null)
 			{
 				return NotFound();
@@ -149,17 +149,17 @@ namespace SmartMeetingManager.Controllers
 			meeting.Status = updateMeetingDTO.Status;
 			meeting.RoomId = updateMeetingDTO.RoomId;
 
-			dbContext.SaveChanges();
+			await dbContext.SaveChangesAsync();
 
-			var organizerName = dbContext.Users
+			var organizerName = await dbContext.Users
 				.Where(u => u.Id == meeting.UserId)
 				.Select(u => $"{u.FirstName} {u.LastName}")
-				.FirstOrDefault() ?? "Unkown Organizer";
+				.FirstOrDefaultAsync() ?? "Unkown Organizer";
 
-			var roomName = dbContext.Rooms
+			var roomName = await dbContext.Rooms
 				.Where(r => r.Id == meeting.RoomId)
 				.Select(r => r.Name)
-				.FirstOrDefault() ?? "No Room Assigned";
+				.FirstOrDefaultAsync() ?? "No Room Assigned";
 
 			// Convert Meeting Model to MeetingDTO
 			var meetingDTO = new MeetingDTO
@@ -181,9 +181,9 @@ namespace SmartMeetingManager.Controllers
 		// Delete Meeting
 		[HttpDelete]
 		[Route("{id:int}")]
-		public IActionResult DeleteMeeting([FromRoute] int id)
+		public async Task<IActionResult> DeleteMeeting([FromRoute] int id)
 		{
-			var meeting = dbContext.Meetings.FirstOrDefault(m => m.Id == id);
+			var meeting = await dbContext.Meetings.FirstOrDefaultAsync(m => m.Id == id);
 
 			if (meeting == null)
 			{
@@ -192,7 +192,7 @@ namespace SmartMeetingManager.Controllers
 
 			// Remove Meeting from Database
 			dbContext.Meetings.Remove(meeting);
-			dbContext.SaveChanges();
+			await dbContext.SaveChangesAsync();
 
 			// Return the deleted meeting back
 			// map model to MeetingDTO
