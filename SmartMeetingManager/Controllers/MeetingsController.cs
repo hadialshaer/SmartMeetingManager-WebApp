@@ -23,9 +23,14 @@ namespace SmartMeetingManager.Controllers
 		{
 			// Get Data from Database - Domain Models
 			var meetings = dbContext.Meetings
-				.Include(m => m.User) 
+				.Include(m => m.User)
 				.Include(m => m.Room)
 				.ToList();
+
+			if (meetings.Count == 0)
+			{
+				return NotFound();
+			}
 
 			// Map Model to DTOs
 			var meetingsDTO = new List<MeetingDTO>();
@@ -44,7 +49,7 @@ namespace SmartMeetingManager.Controllers
 					RoomName = meeting.Room?.Name ?? "No Room Assigned"
 				});
 
-		}
+			}
 			// Return DTOs to Client
 			return Ok(meetingsDTO);
 		}
@@ -55,12 +60,12 @@ namespace SmartMeetingManager.Controllers
 		public IActionResult GetMeetingById([FromRoute] int id)
 		{
 			// Get Data from Database - Domain Models
-			var meetings = dbContext.Meetings
+			var meeting = dbContext.Meetings
 				.Include(m => m.User)
 				.Include(m => m.Room)
 				.FirstOrDefault(m => m.Id == id);
 
-			if (meetings == null)
+			if (meeting == null)
 			{
 				return NotFound();
 			}
@@ -68,15 +73,15 @@ namespace SmartMeetingManager.Controllers
 			// Map Meetings Model to MeetingDTO
 			var meetingDTO = new MeetingDTO
 			{
-				Id = meetings.Id,
-				Title = meetings.Title,
-				StartTime = meetings.StartTime,
-				EndTime = meetings.EndTime,
-				Status = meetings.Status,
-				OrganizerName = meetings.User != null
-					? $"{meetings.User.FirstName} {meetings.User.LastName}"
+				Id = meeting.Id,
+				Title = meeting.Title,
+				StartTime = meeting.StartTime,
+				EndTime = meeting.EndTime,
+				Status = meeting.Status,
+				OrganizerName = meeting.User != null
+					? $"{meeting.User.FirstName} {meeting.User.LastName}"
 					: "Unknown Organizer",
-				RoomName = meetings.Room?.Name ?? "No Room Assigned"
+				RoomName = meeting.Room?.Name ?? "No Room Assigned"
 			};
 
 			return Ok(meetingDTO);
@@ -126,5 +131,90 @@ namespace SmartMeetingManager.Controllers
 			return CreatedAtAction(nameof(GetMeetingById), new { id = meetingDTO.Id }, meetingDTO);
 
 		}
+
+		// Update Meeting
+		[HttpPut]
+		[Route("{id:int}")]
+		public IActionResult UpdateMeeting([FromRoute] int id, [FromBody] UpdateMeetingDTO updateMeetingDTO)
+		{
+			var meeting = dbContext.Meetings.FirstOrDefault(m => m.Id == id);
+			if (meeting == null)
+			{
+				return NotFound();
+			}
+			// Map MeetingDTO to Meeting Model
+			meeting.Title = updateMeetingDTO.Title;
+			meeting.StartTime = updateMeetingDTO.StartTime;
+			meeting.EndTime = updateMeetingDTO.EndTime;
+			meeting.Status = updateMeetingDTO.Status;
+			meeting.RoomId = updateMeetingDTO.RoomId;
+
+			dbContext.SaveChanges();
+
+			var organizerName = dbContext.Users
+				.Where(u => u.Id == meeting.UserId)
+				.Select(u => $"{u.FirstName} {u.LastName}")
+				.FirstOrDefault() ?? "Unkown Organizer";
+
+			var roomName = dbContext.Rooms
+				.Where(r => r.Id == meeting.RoomId)
+				.Select(r => r.Name)
+				.FirstOrDefault() ?? "No Room Assigned";
+
+			// Convert Meeting Model to MeetingDTO
+			var meetingDTO = new MeetingDTO
+			{
+				Id = meeting.Id,
+				Title = meeting.Title,
+				StartTime = meeting.StartTime,
+				EndTime = meeting.EndTime,
+				Status = meeting.Status,
+				OrganizerName = organizerName,
+				RoomName = roomName
+			};
+
+			// Return MeetingDTO to Client
+			return Ok(meetingDTO);
+
+		}
+
+		// Delete Meeting
+		[HttpDelete]
+		[Route("{id:int}")]
+		public IActionResult DeleteMeeting([FromRoute] int id)
+		{
+			var meeting = dbContext.Meetings.FirstOrDefault(m => m.Id == id);
+
+			if (meeting == null)
+			{
+				return NotFound();
+			}
+
+			// Remove Meeting from Database
+			dbContext.Meetings.Remove(meeting);
+			dbContext.SaveChanges();
+
+			// Return the deleted meeting back
+			// map model to MeetingDTO
+			var meetingDTO = new MeetingDTO
+			{
+				Id = meeting.Id,
+				Title = meeting.Title,
+				StartTime = meeting.StartTime,
+				EndTime = meeting.EndTime,
+				Status = meeting.Status,
+				OrganizerName = dbContext.Users
+					.Where(u => u.Id == meeting.UserId)
+					.Select(u => $"{u.FirstName} {u.LastName}")
+					.FirstOrDefault() ?? "Unknown Organizer",
+				RoomName = dbContext.Rooms
+					.Where(r => r.Id == meeting.RoomId)
+					.Select(r => r.Name)
+					.FirstOrDefault() ?? "No Room Assigned"
+			};
+			return Ok(meetingDTO);
+		}
+
+
 	}
 }
