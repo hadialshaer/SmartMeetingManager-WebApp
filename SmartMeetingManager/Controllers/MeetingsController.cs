@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartMeetingManager.Data;
 using SmartMeetingManager.Models;
 using SmartMeetingManager.Models.DTOs;
+using SmartMeetingManager.Repositories;
 
 namespace SmartMeetingManager.Controllers
 {
@@ -12,9 +13,12 @@ namespace SmartMeetingManager.Controllers
 	public class MeetingsController : ControllerBase
 	{
 		private readonly SmartMeetingManagerDbContext dbContext;
-		public MeetingsController(SmartMeetingManagerDbContext dbContext)
+		private readonly IMeetingsRepository meetingsRepository;
+
+		public MeetingsController(SmartMeetingManagerDbContext dbContext, IMeetingsRepository meetingsRepository)
 		{
 			this.dbContext = dbContext;
+			this.meetingsRepository = meetingsRepository;
 		}
 
 		// Get All Meetings
@@ -22,15 +26,7 @@ namespace SmartMeetingManager.Controllers
 		public async Task<IActionResult> GetAllMeetings()
 		{
 			// Get Data from Database - Domain Models
-			var meetings = await dbContext.Meetings
-				.Include(m => m.User)
-				.Include(m => m.Room)
-				.ToListAsync();
-
-			if (meetings.Count == 0)
-			{
-				return NotFound();
-			}
+			var meetings = await meetingsRepository.GetAllMeetingsAsync();
 
 			// Map Model to DTOs
 			var meetingsDTO = new List<MeetingDTO>();
@@ -60,14 +56,11 @@ namespace SmartMeetingManager.Controllers
 		public async Task<IActionResult> GetMeetingById([FromRoute] int id)
 		{
 			// Get Data from Database - Domain Models
-			var meeting = await dbContext.Meetings
-				.Include(m => m.User)
-				.Include(m => m.Room)
-				.FirstOrDefaultAsync(m => m.Id == id);
+			var meeting = await meetingsRepository.GetMeetingByIdAsync(id);
 
 			if (meeting == null)
 			{
-				return NotFound();
+				return NotFound("Meeting Not Found");
 			}
 
 			// Map Meetings Model to MeetingDTO
@@ -91,33 +84,53 @@ namespace SmartMeetingManager.Controllers
 		[HttpPost]
 		public async Task<IActionResult> CreateMeeting([FromBody] CreateMeetingDTO createMeetingDTO)
 		{
-			// Map CreateMeetingDTO to Meetings Model
+			// Basic time validation
+			if (createMeetingDTO.StartTime >= createMeetingDTO.EndTime)
+				return BadRequest("Start time must be before end time.");
+
+			// Check if User exists
+			bool userExists = await dbContext.Users.AnyAsync(u => u.Id == createMeetingDTO.UserId);
+			if (!userExists)
+				return BadRequest("User does not exist.");
+
+			// Check if Room exists
+			bool roomExists = await dbContext.Rooms.AnyAsync(r => r.Id == createMeetingDTO.RoomId);
+			if (!roomExists)
+				return BadRequest("Selected room does not exist.");
+
+			// Check for room booking conflicts
+			bool roomConflict = await dbContext.Meetings.AnyAsync(m =>
+				m.RoomId == createMeetingDTO.RoomId &&
+				m.StartTime < createMeetingDTO.EndTime &&
+				m.EndTime > createMeetingDTO.StartTime
+			);
+			if (roomConflict)
+				return Conflict("The selected room is already booked for the specified time.");
+
+			// Check if User has conflicting meeting
+			bool userConflict = await dbContext.Meetings.AnyAsync(m =>
+				m.UserId == createMeetingDTO.UserId &&
+				m.StartTime < createMeetingDTO.EndTime &&
+				m.EndTime > createMeetingDTO.StartTime
+			);
+			if (userConflict)
+				return Conflict("Organizer has another meeting during this time.");
+
+			// Map DTO to Model
 			var meeting = new Meetings
 			{
 				Title = createMeetingDTO.Title,
 				StartTime = createMeetingDTO.StartTime,
 				EndTime = createMeetingDTO.EndTime,
-				Status = "Scheduled", // Default status
-				CreatedAt = DateTime.UtcNow, // Set created at to current time
+				Status = "Scheduled",
+				CreatedAt = DateTime.UtcNow,
 				UserId = createMeetingDTO.UserId,
 				RoomId = createMeetingDTO.RoomId
 			};
 
-			// Use Model to create new Meeting and Add to Database
-			await dbContext.Meetings.AddAsync(meeting);
-			await dbContext.SaveChangesAsync();
+			meeting = await meetingsRepository.CreateMeetingAsync(meeting);
 
-			var organizerName = dbContext.Users
-				.Where(u => u.Id == meeting.UserId)
-				.Select(u => $"{u.FirstName} {u.LastName}")
-				.FirstOrDefault() ?? "Unknown Organizer";
-
-			var roomName = dbContext.Rooms
-				.Where(r => r.Id == meeting.RoomId)
-				.Select(r => r.Name)
-				.FirstOrDefault() ?? "No Room Assigned";
-
-			// Map Meetings Model to MeetingDTO
+			// Map to DTO for response
 			var meetingDTO = new MeetingDTO
 			{
 				Id = meeting.Id,
@@ -125,57 +138,75 @@ namespace SmartMeetingManager.Controllers
 				StartTime = meeting.StartTime,
 				EndTime = meeting.EndTime,
 				Status = meeting.Status,
-				OrganizerName = organizerName,
-				RoomName = roomName
+				OrganizerName = meeting.User != null
+					? $"{meeting.User.FirstName} {meeting.User.LastName}"
+					: "Unknown Organizer",
+				RoomName = meeting.Room?.Name ?? "No Room Assigned"
 			};
-			return CreatedAtAction(nameof(GetMeetingById), new { id = meetingDTO.Id }, meetingDTO);
 
+			return CreatedAtAction(nameof(GetMeetingById), new { id = meetingDTO.Id }, meetingDTO);
 		}
 
-		// Update Meeting
 		[HttpPut]
 		[Route("{id:int}")]
 		public async Task<IActionResult> UpdateMeeting([FromRoute] int id, [FromBody] UpdateMeetingDTO updateMeetingDTO)
 		{
-			var meeting = await dbContext.Meetings.FirstOrDefaultAsync(m => m.Id == id);
-			if (meeting == null)
+			// Basic time validation
+			if (updateMeetingDTO.StartTime >= updateMeetingDTO.EndTime)
+				return BadRequest("Start time must be before end time.");
+
+			// Check if Meeting exists
+			var existingMeeting = await meetingsRepository.GetMeetingByIdAsync(id);
+			if (existingMeeting == null)
+				return NotFound("Meeting not found.");
+
+			// Check if Room exists
+			bool roomExists = await dbContext.Rooms.AnyAsync(r => r.Id == updateMeetingDTO.RoomId);
+			if (!roomExists)
+				return BadRequest("Selected room does not exist.");
+
+			// Check for room booking conflicts excluding this meeting
+			bool roomConflict = await dbContext.Meetings.AnyAsync(m =>
+				m.RoomId == updateMeetingDTO.RoomId &&
+				m.Id != id && // Exclude current meeting
+				m.StartTime < updateMeetingDTO.EndTime &&
+				m.EndTime > updateMeetingDTO.StartTime
+			);
+			if (roomConflict)
+				return Conflict("The selected room is already booked for the specified time.");
+
+			// Check if User has conflicting meeting excluding this one
+			bool userConflict = await dbContext.Meetings.AnyAsync(m =>
+				m.UserId == existingMeeting.UserId &&
+				m.Id != id &&
+				m.StartTime < updateMeetingDTO.EndTime &&
+				m.EndTime > updateMeetingDTO.StartTime
+			);
+			if (userConflict)
+				return Conflict("Organizer has another meeting during this time.");
+
+			var updatedMeeting = await meetingsRepository.UpdateMeetingAsync(id, updateMeetingDTO);
+
+			if (updatedMeeting == null)
 			{
-				return NotFound();
+				return NotFound("Meeting not found.");
 			}
-			// Map MeetingDTO to Meeting Model
-			meeting.Title = updateMeetingDTO.Title;
-			meeting.StartTime = updateMeetingDTO.StartTime;
-			meeting.EndTime = updateMeetingDTO.EndTime;
-			meeting.Status = updateMeetingDTO.Status;
-			meeting.RoomId = updateMeetingDTO.RoomId;
 
-			await dbContext.SaveChangesAsync();
-
-			var organizerName = await dbContext.Users
-				.Where(u => u.Id == meeting.UserId)
-				.Select(u => $"{u.FirstName} {u.LastName}")
-				.FirstOrDefaultAsync() ?? "Unkown Organizer";
-
-			var roomName = await dbContext.Rooms
-				.Where(r => r.Id == meeting.RoomId)
-				.Select(r => r.Name)
-				.FirstOrDefaultAsync() ?? "No Room Assigned";
-
-			// Convert Meeting Model to MeetingDTO
+			// Convert Model to DTO
 			var meetingDTO = new MeetingDTO
 			{
-				Id = meeting.Id,
-				Title = meeting.Title,
-				StartTime = meeting.StartTime,
-				EndTime = meeting.EndTime,
-				Status = meeting.Status,
-				OrganizerName = organizerName,
-				RoomName = roomName
+				Id = updatedMeeting.Id,
+				Title = updatedMeeting.Title,
+				StartTime = updatedMeeting.StartTime,
+				EndTime = updatedMeeting.EndTime,
+				Status = updatedMeeting.Status,
+				OrganizerName = updatedMeeting.User != null
+					? $"{updatedMeeting.User.FirstName} {updatedMeeting.User.LastName}"
+					: "Unknown Organizer",
+				RoomName = updatedMeeting.Room?.Name ?? "No Room Assigned"
 			};
 
-			// Return MeetingDTO to Client
 			return Ok(meetingDTO);
-
 		}
 
 		// Delete Meeting
@@ -183,16 +214,12 @@ namespace SmartMeetingManager.Controllers
 		[Route("{id:int}")]
 		public async Task<IActionResult> DeleteMeeting([FromRoute] int id)
 		{
-			var meeting = await dbContext.Meetings.FirstOrDefaultAsync(m => m.Id == id);
+			var meeting = await meetingsRepository.DeleteMeetingAsync(id);
 
 			if (meeting == null)
 			{
 				return NotFound();
 			}
-
-			// Remove Meeting from Database
-			dbContext.Meetings.Remove(meeting);
-			await dbContext.SaveChangesAsync();
 
 			// Return the deleted meeting back
 			// map model to MeetingDTO

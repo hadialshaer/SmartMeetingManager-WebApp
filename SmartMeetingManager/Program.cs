@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using SmartMeetingManager.Data;
+using SmartMeetingManager.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,8 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<SmartMeetingManagerDbContext>(options =>
 	options.UseSqlServer(builder.Configuration.GetConnectionString("SmartMeetingManager")));
+
+builder.Services.AddScoped<IMeetingsRepository, SQLMeetingsRepository>();
 
 var app = builder.Build();
 
