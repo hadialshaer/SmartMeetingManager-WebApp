@@ -230,14 +230,10 @@ namespace SmartMeetingManager.Controllers
 				StartTime = meeting.StartTime,
 				EndTime = meeting.EndTime,
 				Status = meeting.Status,
-				OrganizerName = dbContext.Users
-					.Where(u => u.Id == meeting.UserId)
-					.Select(u => $"{u.FirstName} {u.LastName}")
-					.FirstOrDefault() ?? "Unknown Organizer",
-				RoomName = dbContext.Rooms
-					.Where(r => r.Id == meeting.RoomId)
-					.Select(r => r.Name)
-					.FirstOrDefault() ?? "No Room Assigned"
+				OrganizerName = meeting.User != null
+					? $"{meeting.User.FirstName} {meeting.User.LastName}"
+					: "Unknown Organizer",
+				RoomName = meeting.Room?.Name ?? "No Room Assigned"
 			};
 			return Ok(meetingDTO);
 		}
