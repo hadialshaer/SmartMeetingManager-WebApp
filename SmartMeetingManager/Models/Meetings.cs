@@ -17,6 +17,8 @@
 		public Users User { get; set; }
 		public Rooms Room { get; set; }
 
+		public ICollection<MeetingAttendees> Attendees { get; set; } = new List<MeetingAttendees>();
+		public ICollection<Agendas> Agendas { get; set; } = new List<Agendas>();
 
 
 	}
