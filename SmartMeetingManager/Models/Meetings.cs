@@ -6,7 +6,7 @@
 		public string Title { get; set; }
 		public DateTime StartTime { get; set; }
 		public DateTime EndTime { get; set; }
-		public string Status { get; set; } // Scheduled, Ongoing, Completed, Cancelled
+		public string Status { get; set; } // Resheduled, Scheduled, Ongoing, Completed, Cancelled
 		public DateTime CreatedAt { get; set; }
 
 		// Foreign Keys

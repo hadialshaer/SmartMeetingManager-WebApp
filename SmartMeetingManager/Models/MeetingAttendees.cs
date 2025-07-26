@@ -3,7 +3,7 @@
 	public class MeetingAttendees
 	{
 		public int Id { get; set; }
-		public string Role { get; set; } // Attendee, Speaker, Organizer, NoteTaker
+		public string Role { get; set; } // Participent, Speaker, Organizer, NoteTaker
 		public bool AttendanceStatus { get; set; } = false;
 
 		// Foreign Keys

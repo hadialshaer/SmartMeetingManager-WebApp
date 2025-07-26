@@ -1,6 +1,6 @@
 ﻿namespace SmartMeetingManager.Models.DTOs
 {
-	public class AddAteendeesDTO
+	public class AddAtendeesDTO
 	{
 		public List<int> UserIds { get; set; } = new();
 	}

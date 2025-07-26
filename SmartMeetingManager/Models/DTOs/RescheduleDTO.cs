@@ -4,6 +4,6 @@
 	{
 		public DateTime NewStartTime { get; set; }
 		public DateTime NewEndTime { get; set; }
-		public int? NewRoomID { get; set; }
+		public int? NewRoomId { get; set; }
 	}
 }
