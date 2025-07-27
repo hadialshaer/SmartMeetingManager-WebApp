@@ -127,26 +127,39 @@ namespace SmartMeetingManager.Repositories
 
 		public async Task<bool> AddAttendeesAsync(int meetingId, List<int> userIds)
 		{
-			// ignore duplicates already present
-			var existingAttendees = await dbContext.MeetingAttendees
-				.Where(meetingAttendees => meetingAttendees.MeetingId == meetingId)
-				.Select(meetingAttendees => meetingAttendees.UserId)
-				.ToListAsync();
+			// Load meeting with its attendees and room
+			var meeting = await dbContext.Meetings
+				.Include(m => m.Attendees)
+				.Include(m => m.Room)
+				.FirstOrDefaultAsync(m => m.Id == meetingId);
 
-			var newIds = userIds.Except(existingAttendees).ToList();
-			foreach (var uid in newIds)
+			if (meeting == null) return false;
+
+			var existingUserIds = meeting.Attendees.Select(a => a.UserId).ToList();
+			var newIds = userIds.Except(existingUserIds).ToList();
+
+			// Check room capacity
+			int currentCount = existingUserIds.Count;
+			int capacity = meeting.Room.Capacity;
+			if (currentCount + newIds.Count > capacity)
 			{
-				dbContext.MeetingAttendees.Add(new MeetingAttendees
-				{
-					MeetingId = meetingId,
-					UserId = uid,
-					Role = "Participant",
-					AttendanceStatus = false // Default attendance status
-				});
+				return false; // Not enough capacity in the room
 			}
+
+			// Add new attendees
+			var newAttendees = newIds.Select(uid => new MeetingAttendees
+			{
+				MeetingId = meetingId,
+				UserId = uid,
+				Role = "Participant",
+				AttendanceStatus = false // Default status
+			}).ToList();
+
+			dbContext.MeetingAttendees.AddRange(newAttendees);
 			await dbContext.SaveChangesAsync();
 			return true;
 		}
+
 
 
 
