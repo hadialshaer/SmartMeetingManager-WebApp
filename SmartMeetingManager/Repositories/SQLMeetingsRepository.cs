@@ -22,7 +22,7 @@ namespace SmartMeetingManager.Repositories
 				.Include(m => m.Attendees)
 				.Include(m => m.Agendas)
 				.ToListAsync();
-				
+
 			return meetings;
 		}
 		public async Task<Meetings?> GetMeetingByIdAsync(int id)
@@ -55,8 +55,18 @@ namespace SmartMeetingManager.Repositories
 				.FirstOrDefaultAsync(m => m.Id == id);
 
 			if (existingMeeting == null)
-			{
 				return null;
+
+			// Only check for conflicts if something is changing
+			if (existingMeeting.StartTime != updateMeetingDTO.StartTime ||
+				existingMeeting.EndTime != updateMeetingDTO.EndTime ||
+				existingMeeting.RoomId != updateMeetingDTO.RoomId)
+			{
+				if (await RoomHasConflictAsync(updateMeetingDTO.RoomId, updateMeetingDTO.StartTime, updateMeetingDTO.EndTime, id))
+					throw new InvalidOperationException("Room is already booked at this time.");
+
+				if (await OrganizerHasConflictAsync(existingMeeting.UserId, updateMeetingDTO.StartTime, updateMeetingDTO.EndTime, id))
+					throw new InvalidOperationException("Organizer has another meeting at this time.");
 			}
 
 			existingMeeting.Title = updateMeetingDTO.Title;
@@ -67,7 +77,6 @@ namespace SmartMeetingManager.Repositories
 
 			await dbContext.SaveChangesAsync();
 			return existingMeeting;
-
 		}
 		public async Task<Meetings?> DeleteMeetingAsync(int id)
 		{
@@ -97,6 +106,7 @@ namespace SmartMeetingManager.Repositories
 		{
 			return await dbContext.Meetings.AnyAsync(m =>
 				m.UserId == userId &&
+				m.Status != "Cancelled" && // Exclude cancelled meetings
 				(excludeId == null || m.Id != excludeId) &&
 				m.StartTime < endTime && m.EndTime > startTime);
 		}
@@ -104,7 +114,7 @@ namespace SmartMeetingManager.Repositories
 		public async Task<bool> CancelMeetingAsync(int meetingId)
 		{
 			var meeting = await dbContext.Meetings.FindAsync(meetingId);
-			if (meeting == null) return false;
+			if (meeting == null || meeting.Status == "Cancelled") return false;
 			meeting.Status = "Cancelled";
 			await dbContext.SaveChangesAsync();
 			return true;
@@ -113,7 +123,7 @@ namespace SmartMeetingManager.Repositories
 		public async Task<bool> RescheduleMeetingAsync(int meetingId, RescheduleDTO dto)
 		{
 			var m = await dbContext.Meetings.FindAsync(meetingId);
-			if (m == null) return false;
+			if (m == null || m.Status == "Cancelled") return false;
 
 			// check conflicts
 			if (await RoomHasConflictAsync(dto.NewRoomId ?? m.RoomId, dto.NewStartTime, dto.NewEndTime, meetingId))
