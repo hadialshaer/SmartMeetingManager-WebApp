@@ -19,8 +19,10 @@ namespace SmartMeetingManager.Repositories
 			var meetings = await dbContext.Meetings
 				.Include(m => m.User)
 				.Include(m => m.Room)
+				.Include(m => m.Attendees)
+				.Include(m => m.Agendas)
 				.ToListAsync();
-
+				
 			return meetings;
 		}
 		public async Task<Meetings?> GetMeetingByIdAsync(int id)
@@ -28,6 +30,8 @@ namespace SmartMeetingManager.Repositories
 			var meeting = await dbContext.Meetings
 				.Include(m => m.User)
 				.Include(m => m.Room)
+				.Include(m => m.Attendees)
+				.Include(m => m.Agendas)
 				.FirstOrDefaultAsync(m => m.Id == id);
 
 			return meeting;
@@ -139,9 +143,9 @@ namespace SmartMeetingManager.Repositories
 			var newIds = userIds.Except(existingUserIds).ToList();
 
 			// Check room capacity
-			int currentCount = existingUserIds.Count;
+			int TotalAttendeesCount = existingUserIds.Count + newIds.Count;
 			int capacity = meeting.Room.Capacity;
-			if (currentCount + newIds.Count > capacity)
+			if (TotalAttendeesCount > capacity)
 			{
 				return false; // Not enough capacity in the room
 			}
