@@ -39,6 +39,12 @@ namespace SmartMeetingManager.Repositories
 		}
 		public async Task<Meetings> CreateMeetingAsync(Meetings meeting)
 		{
+			// Check for room conflicts
+			if (await RoomHasConflictAsync(meeting.RoomId, meeting.StartTime, meeting.EndTime))
+				throw new InvalidOperationException("Room is already booked at this time.");
+			// Check for organizer conflicts
+			if (await OrganizerHasConflictAsync(meeting.UserId, meeting.StartTime, meeting.EndTime))
+				throw new InvalidOperationException("Organizer has another meeting at this time.");
 
 			await dbContext.Meetings.AddAsync(meeting);
 			await dbContext.SaveChangesAsync();
@@ -173,11 +179,6 @@ namespace SmartMeetingManager.Repositories
 			await dbContext.SaveChangesAsync();
 			return true;
 		}
-
-
-
-
-
 
 	}
 }
