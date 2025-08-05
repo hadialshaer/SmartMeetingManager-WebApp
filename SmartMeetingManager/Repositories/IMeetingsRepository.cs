@@ -15,5 +15,7 @@ namespace SmartMeetingManager.Repositories
 		Task<bool> CancelMeetingAsync(int meetingId);
 		Task<bool> RescheduleMeetingAsync(int meetingId, RescheduleDTO dto);
 		Task<bool> AddAttendeesAsync(int meetingId, List<int> userIds);
+		public Task<List<Rooms>> CheckAvailabilityAsync(DateTime startTime, DateTime endTime, int? minCapacity = null, int? excludeMeetingId = null);
+
 	}
 }

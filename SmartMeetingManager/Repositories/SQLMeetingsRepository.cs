@@ -179,6 +179,29 @@ namespace SmartMeetingManager.Repositories
 			await dbContext.SaveChangesAsync();
 			return true;
 		}
+		public async Task<List<Rooms>> CheckAvailabilityAsync(DateTime startTime, DateTime endTime, int? minCapacity = null, int? excludeMeetingId = null)
+		{
+			var query = dbContext.Rooms.AsQueryable();
+
+			if (minCapacity.HasValue)
+				query = query.Where(r => r.Capacity >= minCapacity);
+
+			query = query.Where(room =>
+				!dbContext.Meetings.Any(m =>
+					m.RoomId == room.Id &&
+					m.Status != "Cancelled" &&
+					(excludeMeetingId == null || m.Id != excludeMeetingId) && // Exclude meeting ID if provided
+					m.StartTime < endTime &&
+					m.EndTime > startTime
+				)
+			);
+
+			return await query
+				.Include(r => r.RoomFeatures)
+					.ThenInclude(rf => rf.Feature)
+				.ToListAsync();
+		}
+
 
 	}
 }
