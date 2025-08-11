@@ -17,9 +17,11 @@ namespace SmartMeetingManager.Repositories
 		public async Task<List<Meetings>> GetAllMeetingsAsync()
 		{
 			var meetings = await dbContext.Meetings
+				.AsNoTracking()
 				.Include(m => m.User)
 				.Include(m => m.Room)
 				.Include(m => m.Attendees)
+					.ThenInclude(a => a.User) // Include user details for attendees
 				.Include(m => m.Agendas)
 				.ToListAsync();
 
@@ -28,9 +30,11 @@ namespace SmartMeetingManager.Repositories
 		public async Task<Meetings?> GetMeetingByIdAsync(int id)
 		{
 			var meeting = await dbContext.Meetings
+				.AsNoTracking()
 				.Include(m => m.User)
 				.Include(m => m.Room)
 				.Include(m => m.Attendees)
+					.ThenInclude(a => a.User) // Include user details for attendees
 				.Include(m => m.Agendas)
 				.FirstOrDefaultAsync(m => m.Id == id);
 
