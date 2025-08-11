@@ -10,5 +10,9 @@
 
 		public string OrganizerName { get; set; }
 		public string RoomName { get; set; }
+		public List<string> Attendees { get; set; } = new List<string>();
+		public List<string> Agendas { get; set; } = new List<string>();
+		public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
 	}
 }
