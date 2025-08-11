@@ -27,24 +27,30 @@ namespace SmartMeetingManager.Controllers
 			var meetings = await meetingsRepository.GetAllMeetingsAsync();
 
 			// Map Model to DTOs
-			var meetingsDTO = new List<MeetingDTO>();
-			foreach (var meeting in meetings)
+			var meetingsDTO = meetings.Select(m => new MeetingDTO
 			{
-				meetingsDTO.Add(new MeetingDTO
-				{
-					Id = meeting.Id,
-					Title = meeting.Title,
-					StartTime = meeting.StartTime,
-					EndTime = meeting.EndTime,
-					Status = meeting.Status,
-					OrganizerName = meeting.User != null
-						? $"{meeting.User.FirstName} {meeting.User.LastName}"
-						: "Unknown Organizer",
-					RoomName = meeting.Room?.Name ?? "No Room Assigned"
-				});
+				Id = m.Id,
+				Title = m.Title,
+				StartTime = m.StartTime,
+				EndTime = m.EndTime,
+				Status = m.Status,
+				OrganizerName = m.User != null
+					? $"{m.User.FirstName} {m.User.LastName}"
+					: "Unknown Organizer",
+				RoomName = m.Room?.Name ?? "No Room Assigned",
+				Attendees = m.Attendees?
+							.Where(a => a.User != null)
+							.Select(a => $"{a.User.FirstName} {a.User.LastName}")
+							.ToList()
+							?? [],
 
-			}
-			// Return DTOs to Client
+				Agendas = m.Agendas?
+						.Select(a => a.Topic)
+						.ToList()
+						?? []
+
+			}).ToList();
+			// Return DTOs to Client	
 			return Ok(meetingsDTO);
 		}
 
@@ -72,7 +78,17 @@ namespace SmartMeetingManager.Controllers
 				OrganizerName = meeting.User != null
 					? $"{meeting.User.FirstName} {meeting.User.LastName}"
 					: "Unknown Organizer",
-				RoomName = meeting.Room?.Name ?? "No Room Assigned"
+				RoomName = meeting.Room?.Name ?? "No Room Assigned",
+				Attendees = meeting.Attendees?
+							.Where(a => a.User != null)
+							.Select(a => $"{a.User.FirstName} {a.User.LastName}")
+							.ToList()
+							?? [],
+				Agendas = meeting.Agendas?
+							.Select(a => a.Topic)
+							.ToList()
+							?? [],
+
 			};
 
 			return Ok(meetingDTO);
