@@ -12,12 +12,10 @@ namespace SmartMeetingManager.Controllers
 	[ApiController]
 	public class MeetingsController : ControllerBase
 	{
-		private readonly SmartMeetingManagerDbContext dbContext;
 		private readonly IMeetingsRepository meetingsRepository;
 
-		public MeetingsController(SmartMeetingManagerDbContext dbContext, IMeetingsRepository meetingsRepository)
+		public MeetingsController( IMeetingsRepository meetingsRepository)
 		{
-			this.dbContext = dbContext;
 			this.meetingsRepository = meetingsRepository;
 		}
 
@@ -236,34 +234,30 @@ namespace SmartMeetingManager.Controllers
 		}
 
 		[HttpGet("availability")]
-		public async Task<IActionResult> CheckAvailability
-			(
-				[FromQuery] DateTime startTime,
-				[FromQuery] DateTime endTime,
-				[FromQuery] int? minCapacity,
-				[FromQuery] int? excludeMeetingId
-			)
+		public async Task<IActionResult> CheckAvailability([FromQuery] CheckAvailabilityDTO dto, [FromQuery] int? excludeMeetingId)
 		{
-			// Validate time range
-			if (startTime >= endTime)
-				return BadRequest("Invalid time range.");
+			// Validate input
+			if (dto == null)
+				return BadRequest("No data sent.");
+			if (dto.StartTime >= dto.EndTime)
+				return BadRequest("Start time must be before end time.");
 
-			// Call repository to get available rooms
-			var rooms = await meetingsRepository
-				.CheckAvailabilityAsync(startTime, endTime, minCapacity, excludeMeetingId);
-
-
+			var rooms = await meetingsRepository.CheckAvailabilityAsync(
+				dto.StartTime, dto.EndTime, dto.MinCapacity, excludeMeetingId);
 
 			var result = rooms.Select(r => new {
 				r.Id,
 				r.Name,
 				r.Capacity,
 				r.Location,
-				Features = r.RoomFeatures.Select(f => f.Feature.Name).ToList()
+				Features = r.RoomFeatures
+				.Select(f => f.Feature.Name)
+				.ToList()
 			});
 
 			return Ok(result);
 		}
+
 
 
 
