@@ -98,13 +98,6 @@ namespace SmartMeetingManager.Controllers
 		[HttpPost]
 		public async Task<IActionResult> CreateMeeting([FromBody] CreateMeetingDTO createMeetingDTO)
 		{
-			// Validate the incoming DTO
-			if (createMeetingDTO == null)
-				return BadRequest("No data sent.");
-
-			// Basic time validation
-			if (createMeetingDTO.StartTime >= createMeetingDTO.EndTime)
-				return BadRequest("Start time must be before end time.");
 
 			try
 			{
@@ -136,11 +129,20 @@ namespace SmartMeetingManager.Controllers
 				};
 				return CreatedAtAction(nameof(GetMeetingById), new { id = responseMeetingDTO.Id }, responseMeetingDTO);
 			}
-			catch (InvalidOperationException ex)
+
+			catch (ArgumentNullException ex)
 			{
-				// Handle other exceptions
-				return Conflict(ex.Message);
+				return BadRequest("Invalid data sent: " + ex.Message);
 			}
+
+			catch (ArgumentException ex)
+			{ 
+				return BadRequest(ex.Message);
+			}
+			catch (InvalidOperationException ex)
+			{ 
+				return Conflict(ex.Message); 
+			}    
 		}
 
 		[HttpPut]
@@ -179,11 +181,17 @@ namespace SmartMeetingManager.Controllers
 				return Ok(meetingDTO);
 
 			}
+
+			catch (ArgumentException ex)
+			{
+				return BadRequest(ex.Message);
+			}
+
 			catch (InvalidOperationException ex)
 			{
-				// Handle other exceptions
 				return Conflict(ex.Message);
 			}
+
 		}
 
 		// Delete Meeting

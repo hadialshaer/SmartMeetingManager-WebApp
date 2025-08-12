@@ -43,6 +43,18 @@ namespace SmartMeetingManager.Repositories
 		}
 		public async Task<Meetings> CreateMeetingAsync(Meetings meeting)
 		{
+			if (meeting == null)
+				throw new ArgumentNullException(nameof(meeting), "Meeting cannot be null.");
+
+			if (!await dbContext.Rooms.AnyAsync(r => r.Id == meeting.RoomId))
+				throw new ArgumentException("Invalid RoomId.");
+
+			if (!await dbContext.Users.AnyAsync(u => u.Id == meeting.UserId))
+				throw new ArgumentException("Invalid UserId.");
+
+			if (meeting.StartTime >= meeting.EndTime)
+				throw new ArgumentException("Start time must be before end time.");
+
 			// Check for room conflicts
 			if (await RoomHasConflictAsync(meeting.RoomId, meeting.StartTime, meeting.EndTime))
 				throw new InvalidOperationException("Room is already booked at this time.");
@@ -66,6 +78,15 @@ namespace SmartMeetingManager.Repositories
 
 			if (existingMeeting == null)
 				return null;
+
+			// Validate room exists if changed
+			if (updateMeetingDTO.RoomId != existingMeeting.RoomId &&
+				!await dbContext.Rooms.AnyAsync(r => r.Id == updateMeetingDTO.RoomId))
+				throw new ArgumentException("Invalid RoomId.");
+
+			// time validation
+			if (updateMeetingDTO.StartTime >= existingMeeting.EndTime)
+				throw new ArgumentException("Start time must be before end time.");
 
 			// Only check for conflicts if something is changing
 			if (existingMeeting.StartTime != updateMeetingDTO.StartTime ||
