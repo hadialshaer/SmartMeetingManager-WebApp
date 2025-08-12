@@ -232,7 +232,7 @@ namespace SmartMeetingManager.Controllers
 		}
 
 		[HttpPost]
-		[Route("{meetingId:int}/reschedule")]
+		[Route("{id:int}/reschedule")]
 		public async Task<IActionResult> Reschedule(int id, [FromBody] RescheduleDTO rescheduleDTO)
 		{
 			// Validate the incoming DTO

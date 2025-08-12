@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using SmartMeetingManager.Data;
 using SmartMeetingManager.Models;
 using SmartMeetingManager.Models.DTOs;
@@ -175,14 +176,24 @@ namespace SmartMeetingManager.Repositories
 				.FirstOrDefaultAsync(m => m.Id == meetingId);
 
 			if (meeting == null) return false;
+			if (meeting.Status == "Cancelled") return false; // Cannot add attendees to a cancelled meeting
+			if (meeting.Status == "Completed") return false; // Cannot add attendees to a completed meeting
+			if (meeting.Room == null) return false; // No room assigned
+
+
+			// Ensure users exist(avoid foreign key failures / leaked info)
+			var existingUserIdsInDb = await dbContext.Users
+			.Where(u => userIds.Contains(u.Id))
+			.Select(u => u.Id)
+			.ToListAsync();
 
 			var existingUserIds = meeting.Attendees.Select(a => a.UserId).ToList();
 			var newIds = userIds.Except(existingUserIds).ToList();
 
 			// Check room capacity
-			int TotalAttendeesCount = existingUserIds.Count + newIds.Count;
+			int totalAfterAdd = 1 + existingUserIds.Count + newIds.Count;
 			int capacity = meeting.Room.Capacity;
-			if (TotalAttendeesCount > capacity)
+			if (totalAfterAdd > capacity)
 			{
 				return false; // Not enough capacity in the room
 			}
@@ -202,7 +213,7 @@ namespace SmartMeetingManager.Repositories
 		}
 		public async Task<List<Rooms>> CheckAvailabilityAsync(DateTime startTime, DateTime endTime, int? minCapacity = null, int? excludeMeetingId = null)
 		{
-			var query = dbContext.Rooms.AsQueryable();
+			var query = dbContext.Rooms.AsNoTracking().AsQueryable();
 
 			if (minCapacity.HasValue)
 				query = query.Where(r => r.Capacity >= minCapacity);
