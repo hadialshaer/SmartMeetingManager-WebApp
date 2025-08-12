@@ -84,10 +84,6 @@ namespace SmartMeetingManager.Repositories
 				!await dbContext.Rooms.AnyAsync(r => r.Id == updateMeetingDTO.RoomId))
 				throw new ArgumentException("Invalid RoomId.");
 
-			// time validation
-			if (updateMeetingDTO.StartTime >= existingMeeting.EndTime)
-				throw new ArgumentException("Start time must be before end time.");
-
 			// Only check for conflicts if something is changing
 			if (existingMeeting.StartTime != updateMeetingDTO.StartTime ||
 				existingMeeting.EndTime != updateMeetingDTO.EndTime ||
