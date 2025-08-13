@@ -181,14 +181,14 @@ namespace SmartMeetingManager.Repositories
 			if (meeting.Room == null) return false; // No room assigned
 
 
-			// Ensure users exist(avoid foreign key failures / leaked info)
+			// Ensure users exist(avoid foreign key failures 
 			var existingUserIdsInDb = await dbContext.Users
 			.Where(u => userIds.Contains(u.Id))
 			.Select(u => u.Id)
 			.ToListAsync();
 
 			var existingUserIds = meeting.Attendees.Select(a => a.UserId).ToList();
-			var newIds = userIds.Except(existingUserIds).ToList();
+			var newIds = existingUserIdsInDb.Except(existingUserIds).ToList();
 
 			// Check room capacity
 			int totalAfterAdd = 1 + existingUserIds.Count + newIds.Count;
