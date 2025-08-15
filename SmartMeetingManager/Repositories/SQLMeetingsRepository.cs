@@ -151,13 +151,21 @@ namespace SmartMeetingManager.Repositories
 		public async Task<bool> RescheduleMeetingAsync(int meetingId, RescheduleDTO dto)
 		{
 			var m = await dbContext.Meetings.FindAsync(meetingId);
-			if (m == null || m.Status == "Cancelled") return false;
+			if (m == null || m.Status == "Cancelled")
+				throw new ArgumentException("Meeting not found or already cancelled.");
+			if (dto.NewStartTime >= dto.NewEndTime)
+				throw new ArgumentException("New start time must be before new end time.");
 
-			// check conflicts
-			if (await RoomHasConflictAsync(dto.NewRoomId ?? m.RoomId, dto.NewStartTime, dto.NewEndTime, meetingId))
+				// check conflicts
+				if (await RoomHasConflictAsync(dto.NewRoomId ?? m.RoomId, dto.NewStartTime, dto.NewEndTime, meetingId))
 				return false;
 			if (await OrganizerHasConflictAsync(m.UserId, dto.NewStartTime, dto.NewEndTime, meetingId))
 				return false;
+
+			// Validate room exists if changed
+			if (dto.NewRoomId != m.RoomId &&
+				!await dbContext.Rooms.AnyAsync(r => r.Id == dto.NewRoomId))
+				throw new ArgumentException("Invalid RoomId.");
 
 			m.StartTime = dto.NewStartTime;
 			m.EndTime = dto.NewEndTime;
@@ -169,34 +177,42 @@ namespace SmartMeetingManager.Repositories
 
 		public async Task<bool> AddAttendeesAsync(int meetingId, List<int> userIds)
 		{
+			if (userIds == null || userIds.Count == 0)
+				throw new ArgumentException("No user ids provided.");
+
 			// Load meeting with its attendees and room
 			var meeting = await dbContext.Meetings
 				.Include(m => m.Attendees)
 				.Include(m => m.Room)
-				.FirstOrDefaultAsync(m => m.Id == meetingId);
+				.FirstOrDefaultAsync(m => m.Id == meetingId) ??
+					throw new KeyNotFoundException($"Meeting with ID {meetingId} not found.");
+			
+			if (meeting.Status == "Cancelled")
+				throw new InvalidOperationException("Cannot add attendees to a cancelled meeting.");
 
-			if (meeting == null) return false;
-			if (meeting.Status == "Cancelled") return false; // Cannot add attendees to a cancelled meeting
-			if (meeting.Status == "Completed") return false; // Cannot add attendees to a completed meeting
-			if (meeting.Room == null) return false; // No room assigned
+			if (meeting.Status == "Completed")
+				throw new InvalidOperationException("Cannot add attendees to a completed meeting.");
 
+			if (meeting.Room == null)
+				throw new InvalidOperationException("Meeting has no assigned room.");
 
-			// Ensure users exist(avoid foreign key failures 
+			// Ensure users exist (avoid foreign key failures)
 			var existingUserIdsInDb = await dbContext.Users
-			.Where(u => userIds.Contains(u.Id))
-			.Select(u => u.Id)
-			.ToListAsync();
+				.Where(u => userIds.Contains(u.Id))
+				.Select(u => u.Id)
+				.ToListAsync();
+
+			if (existingUserIdsInDb.Count == 0)
+				throw new ArgumentException("None of the provided user IDs exist.");
 
 			var existingUserIds = meeting.Attendees.Select(a => a.UserId).ToList();
 			var newIds = existingUserIdsInDb.Except(existingUserIds).ToList();
 
 			// Check room capacity
-			int totalAfterAdd = 1 + existingUserIds.Count + newIds.Count;
+			int totalAfterAdd = existingUserIds.Count + newIds.Count;
 			int capacity = meeting.Room.Capacity;
 			if (totalAfterAdd > capacity)
-			{
-				return false; // Not enough capacity in the room
-			}
+				throw new InvalidOperationException($"Room capacity exceeded. Available: {capacity - existingUserIds.Count}");
 
 			// Add new attendees
 			var newAttendees = newIds.Select(uid => new MeetingAttendees
@@ -204,26 +220,30 @@ namespace SmartMeetingManager.Repositories
 				MeetingId = meetingId,
 				UserId = uid,
 				Role = "Participant",
-				AttendanceStatus = false // Default status
+				AttendanceStatus = false
 			}).ToList();
 
 			dbContext.MeetingAttendees.AddRange(newAttendees);
 			await dbContext.SaveChangesAsync();
+
 			return true;
 		}
-		public async Task<List<Rooms>> CheckAvailabilityAsync(DateTime startTime, DateTime endTime, int? minCapacity = null, int? excludeMeetingId = null)
+		public async Task<List<Rooms>> CheckAvailabilityAsync(DateTime startTime, DateTime endTime, int? minCapacity = null)
 		{
-			var query = dbContext.Rooms.AsNoTracking().AsQueryable();
+			if (startTime >= endTime)
+				throw new ArgumentException("Start time must be before end time.");
+
+			var query = dbContext.Rooms
+				.AsNoTracking();
 
 			if (minCapacity.HasValue)
-				query = query.Where(r => r.Capacity >= minCapacity);
+				query = query.Where(r => r.Capacity >= minCapacity.Value);
 
 			query = query.Where(room =>
 				!dbContext.Meetings.Any(m =>
 					m.RoomId == room.Id &&
 					m.Status != "Cancelled" &&
-					(excludeMeetingId == null || m.Id != excludeMeetingId) && // Exclude meeting ID if provided
-					m.StartTime < endTime &&
+					m.StartTime < endTime &&   // overlap test
 					m.EndTime > startTime
 				)
 			);

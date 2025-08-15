@@ -235,30 +235,48 @@ namespace SmartMeetingManager.Controllers
 		[Route("{id:int}/reschedule")]
 		public async Task<IActionResult> Reschedule(int id, [FromBody] RescheduleDTO rescheduleDTO)
 		{
-			// Validate the incoming DTO
-			if (rescheduleDTO == null)
-				return BadRequest("No data sent.");
-			// Basic time validation
-			if (rescheduleDTO.NewStartTime >= rescheduleDTO.NewEndTime)
-				return BadRequest("New start time must be before new end time.");
-			// Check if the meeting exists
+			try {
+				var result = await meetingsRepository.RescheduleMeetingAsync(id, rescheduleDTO);
+				return result ? NoContent() : Conflict("Cannot reschedule due to conflict or meeting cancelled.");
+			}
 
-			var result = await meetingsRepository.RescheduleMeetingAsync(id, rescheduleDTO);
-			return result ? NoContent() : Conflict("Cannot reschedule due to conflict or meeting cancelled.");
+			catch (ArgumentException ex)
+			{
+				return BadRequest(ex.Message);
+			}
+
 		}
 
 		[HttpPost("{id:int}/attendees")]
-		public async Task<IActionResult> AddAttendees(int id, [FromBody] AddAttendeesDTO addAttendeesDTO)
+		public async Task<IActionResult> AddAttendees(int id, [FromBody] AddAttendeesDTO dto)
 		{
-			if (addAttendeesDTO?.UserIds == null || addAttendeesDTO.UserIds.Count == 0)
-				return BadRequest("No user ids provided.");
-
-			var success = await meetingsRepository.AddAttendeesAsync(id, addAttendeesDTO.UserIds);
-			return success ? NoContent() : Conflict("Cannot add attendees (room at capacity or meeting not found).");
+			try
+			{
+				var success = await meetingsRepository.AddAttendeesAsync(id, dto.UserIds);
+				return success ? NoContent() : Conflict("Could not add attendees for unknown reasons.");
+			}
+			catch (KeyNotFoundException ex)
+			{
+				return NotFound(new { message = ex.Message });
+			}
+			catch (ArgumentException ex)
+			{
+				return BadRequest(new { message = ex.Message });
+			}
+			catch (InvalidOperationException ex)
+			{
+				return Conflict(new { message = ex.Message });
+			}
+			catch (Exception ex)
+			{
+				// Generic handler for unexpected errors
+				return StatusCode(StatusCodes.Status500InternalServerError,
+					new { message = "An unexpected error occurred.", detail = ex.Message });
+			}
 		}
 
 		[HttpGet("availability")]
-		public async Task<IActionResult> CheckAvailability([FromQuery] CheckAvailabilityDTO dto, [FromQuery] int? excludeMeetingId)
+		public async Task<IActionResult> CheckAvailability([FromQuery] CheckAvailabilityDTO dto)
 		{
 			// Validate input
 			if (dto == null)
@@ -267,7 +285,7 @@ namespace SmartMeetingManager.Controllers
 				return BadRequest("Start time must be before end time.");
 
 			var rooms = await meetingsRepository.CheckAvailabilityAsync(
-				dto.StartTime, dto.EndTime, dto.MinCapacity, excludeMeetingId);
+				dto.StartTime, dto.EndTime, dto.MinCapacity);
 
 			var result = rooms.Select(r => new {
 				r.Id,
