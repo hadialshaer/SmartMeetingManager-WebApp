@@ -104,7 +104,10 @@ namespace SmartMeetingManager.Repositories
 			existingMeeting.RoomId = updateMeetingDTO.RoomId;
 
 			await dbContext.SaveChangesAsync();
-			return existingMeeting;
+			return await dbContext.Meetings
+					.Include(m => m.User)
+					.Include(m => m.Room)
+					.FirstAsync(m => m.Id == id);
 		}
 		public async Task<Meetings?> DeleteMeetingAsync(int id)
 		{

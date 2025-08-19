@@ -96,6 +96,7 @@ namespace SmartMeetingManager.Controllers
 
 		// Create New Meeting
 		[HttpPost]
+		[Route("create")]
 		public async Task<IActionResult> CreateMeeting([FromBody] CreateMeetingDTO createMeetingDTO)
 		{
 
@@ -146,7 +147,7 @@ namespace SmartMeetingManager.Controllers
 		}
 
 		[HttpPut]
-		[Route("{id:int}")]
+		[Route("{id:int}/update")]
 		public async Task<IActionResult> UpdateMeeting([FromRoute] int id, [FromBody] UpdateMeetingDTO updateMeetingDTO)
 		{
 			// Validate the incoming DTO
@@ -196,7 +197,7 @@ namespace SmartMeetingManager.Controllers
 
 		// Delete Meeting
 		[HttpDelete]
-		[Route("{id:int}")]
+		[Route("{id:int}/delete")]
 		public async Task<IActionResult> DeleteMeeting([FromRoute] int id)
 		{
 			var meeting = await meetingsRepository.DeleteMeetingAsync(id);
