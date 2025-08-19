@@ -85,6 +85,9 @@ namespace SmartMeetingManager.Repositories
 				!await dbContext.Rooms.AnyAsync(r => r.Id == updateMeetingDTO.RoomId))
 				throw new ArgumentException("Invalid RoomId.");
 
+			if (updateMeetingDTO.StartTime >= updateMeetingDTO.EndTime)
+				throw new ArgumentException("Start time must be before end time.");
+
 			// Only check for conflicts if something is changing
 			if (existingMeeting.StartTime != updateMeetingDTO.StartTime ||
 				existingMeeting.EndTime != updateMeetingDTO.EndTime ||
@@ -156,6 +159,7 @@ namespace SmartMeetingManager.Repositories
 			var m = await dbContext.Meetings.FindAsync(meetingId);
 			if (m == null || m.Status == "Cancelled")
 				throw new ArgumentException("Meeting not found or already cancelled.");
+
 			if (dto.NewStartTime >= dto.NewEndTime)
 				throw new ArgumentException("New start time must be before new end time.");
 
@@ -212,7 +216,7 @@ namespace SmartMeetingManager.Repositories
 			var newIds = existingUserIdsInDb.Except(existingUserIds).ToList();
 
 			// Check room capacity
-			int totalAfterAdd = existingUserIds.Count + newIds.Count;
+			int totalAfterAdd = 1 + existingUserIds.Count + newIds.Count;
 			int capacity = meeting.Room.Capacity;
 			if (totalAfterAdd > capacity)
 				throw new InvalidOperationException($"Room capacity exceeded. Available: {capacity - existingUserIds.Count}");

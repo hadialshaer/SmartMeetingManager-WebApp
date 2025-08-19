@@ -96,7 +96,6 @@ namespace SmartMeetingManager.Controllers
 
 		// Create New Meeting
 		[HttpPost]
-		[Route("create")]
 		public async Task<IActionResult> CreateMeeting([FromBody] CreateMeetingDTO createMeetingDTO)
 		{
 
@@ -147,7 +146,6 @@ namespace SmartMeetingManager.Controllers
 		}
 
 		[HttpPut]
-		[Route("{id:int}/update")]
 		public async Task<IActionResult> UpdateMeeting([FromRoute] int id, [FromBody] UpdateMeetingDTO updateMeetingDTO)
 		{
 			// Validate the incoming DTO
@@ -197,7 +195,7 @@ namespace SmartMeetingManager.Controllers
 
 		// Delete Meeting
 		[HttpDelete]
-		[Route("{id:int}/delete")]
+		[Route("{id:int}")]
 		public async Task<IActionResult> DeleteMeeting([FromRoute] int id)
 		{
 			var meeting = await meetingsRepository.DeleteMeetingAsync(id);
@@ -228,15 +226,22 @@ namespace SmartMeetingManager.Controllers
 		[HttpPost("{id:int}/cancel")]
 		public async Task<IActionResult> CancelMeeting(int id)
 		{
-			var result = await meetingsRepository.CancelMeetingAsync(id);
-			return result ? NoContent() : NotFound();
+			var ok = await meetingsRepository.CancelMeetingAsync(id);
+			return ok ? NoContent() : NotFound();
 		}
 
 		[HttpPost]
 		[Route("{id:int}/reschedule")]
 		public async Task<IActionResult> Reschedule(int id, [FromBody] RescheduleDTO rescheduleDTO)
 		{
-			try {
+			// Validate the incoming DTO
+			if (rescheduleDTO == null)
+				return BadRequest("No data sent.");
+			// Basic time validation
+			if (rescheduleDTO.NewStartTime >= rescheduleDTO.NewEndTime)
+				return BadRequest("Start time must be before end time.");
+			try
+			{
 				var result = await meetingsRepository.RescheduleMeetingAsync(id, rescheduleDTO);
 				return result ? NoContent() : Conflict("Cannot reschedule due to conflict or meeting cancelled.");
 			}
@@ -251,10 +256,13 @@ namespace SmartMeetingManager.Controllers
 		[HttpPost("{id:int}/attendees")]
 		public async Task<IActionResult> AddAttendees(int id, [FromBody] AddAttendeesDTO dto)
 		{
+			if (dto == null || dto.UserIds == null || dto.UserIds.Count == 0)
+				return BadRequest(new { message = "No user ids provided." });
+
 			try
 			{
-				var success = await meetingsRepository.AddAttendeesAsync(id, dto.UserIds);
-				return success ? NoContent() : Conflict("Could not add attendees for unknown reasons.");
+				var ok = await meetingsRepository.AddAttendeesAsync(id, dto.UserIds);
+				return ok ? NoContent() : Conflict("Could not add attendees for unknown reasons.");
 			}
 			catch (KeyNotFoundException ex)
 			{
