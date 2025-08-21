@@ -1,7 +1,10 @@
-﻿namespace SmartMeetingManager.Models.DTOs
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace SmartMeetingManager.Models.DTOs
 {
 	public class AddAttendeesDTO
 	{
-		public List<int> UserIds { get; set; } = new();
+		[Required(ErrorMessage = "At least one User is required.")]
+		public List<int> UserIds { get; set; } = [];
 	}
 }
